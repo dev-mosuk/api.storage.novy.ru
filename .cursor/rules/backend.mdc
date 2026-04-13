@@ -1,0 +1,280 @@
+---
+description:
+alwaysApply: true
+---
+
+# API (Backend)
+
+NestJS-приложение на Fastify с TypeORM, JWT-аутентификацией, Elasticsearch для поиска и интеграциями с внешними сервисами.
+
+## Рекомендации по структуре
+
+### 1. Разделение `app`, `common` и `shared`
+
+| Папка      | Назначение                                                                               |
+| ---------- | ---------------------------------------------------------------------------------------- |
+| **app**    | Бизнес-домены приложения (auth, users, products, orders и т.д.)                          |
+| **common** | Общие сервисы и утилиты, используемые несколькими доменами (search, config)              |
+| **shared** | Интеграции, микросервисы, глобальные подсистемы (storage, mail, webhooks, search-модуль) |
+
+#### 1.1 app — по доменам
+
+Каждый домен — отдельная папка со своей структурой:
+
+```
+app/
+└── products/                     # Домен = сущность API
+    ├── controllers/              # HTTP-эндпоинты
+    │   ├── read.ts               # GET /products
+    │   ├── create.ts             # POST /products
+    │   └── [product_id]/         # Вложенные маршруты
+    │       ├── read.ts           # GET /products/:productIdOrSlug
+    │       ├── update.ts         # PATCH /products/:id
+    │       ├── delete.ts         # DELETE /products/:id
+    │       ├── categories/       # /products/:id/categories
+    │       └── features/         # /products/:id/features
+    ├── providers/                # Бизнес-логика CRUD
+    │   ├── read.ts
+    │   ├── create.ts
+    │   └── [product_id]/
+    │       ├── read.ts
+    │       ├── update.ts
+    │       ├── delete.ts
+    │       ├── categories/
+    │       └── features/
+    ├── entities/                 # TypeORM-сущности
+    │   ├── entity.ts
+    │   ├── images/
+    │   ├── categories/
+    │   └── features/
+    ├── dtos/                     # DTO для валидации и Swagger
+    │   ├── read.ts
+    │   ├── create.ts
+    │   └── [product_id]/update.ts
+    ├── subscribers/              # TypeORM Event Subscribers
+    │   ├── create.ts
+    │   ├── update.ts
+    │   └── images/delete.ts
+    ├── enums/
+    └── module.ts
+```
+
+**Примеры доменов:** `auth`, `users`, `products`, `categories`, `features`, `orders`, `promotions`, `warehouses`, `settings`, `maps`.
+
+#### 1.2 common — общие сервисы
+
+```
+common/
+├── config/                       # Конфигурация (orm, swagger, cors, validation)
+├── search/                       # Сервис поиска по полям (ILike)
+│   ├── module.ts
+│   └── services/read.ts
+└── module.ts
+```
+
+#### 1.3 shared — интеграции и микросервисы
+
+```
+shared/
+├── app/                          # Подсистемы приложения
+│   ├── search/                   # Elasticsearch (индексация, full-text поиск)
+│   │   ├── controllers/
+│   │   ├── providers/
+│   │   ├── services/
+│   │   ├── subscribers/          # Синхронизация с Elasticsearch
+│   │   └── cron/
+│   └── webhooks/
+├── microservices/                # Почта, хранилище файлов
+│   ├── mail/
+│   └── storage/
+├── integrations/                 # Внешние API (Yandex, T-Bank)
+└── module.ts
+```
+
+**Разница:**
+
+- **app** — домен = папка с controllers, providers, entities, dtos, subscribers
+- **common** — общие сервисы без привязки к домену
+- **shared** — кросс-доменные подсистемы и интеграции
+
+---
+
+### 2. CRUD и Providers
+
+#### 2.1 Паттерн Controller → Provider
+
+- **Controller** — маршрутизация, guards, decorators, Swagger. Минимум логики.
+- **Provider** — вся бизнес-логика: доступ к БД, валидация прав, транзакции.
+
+```ts
+// Controller — только вызов провайдера
+@Get()
+@UseInterceptors(AuthInterceptor)
+async read(
+  @AuthDecorator() auth: Auth,
+  @Query() dto: ProductsReadDto,
+): Promise<Product[]> {
+  return await this.productsReadProvider.read(auth, dto);
+}
+```
+
+#### 2.2 Структура Provider.read (список)
+
+```ts
+async read(auth: Auth, dto: ProductsReadDto): Promise<Product[]> {
+  try {
+    // * Params object
+    let where: FindOptionsWhere<Product> | FindOptionsWhere<Product>[] = {};
+    let order: Record<string, 'asc' | 'desc'> = {};
+    let relations = { images: true };
+    let skip = (dto?.page || 0) * (dto?.items || 20);
+    let take = dto?.items || 20;
+
+    // * Sort data
+    where = this.createSortData(where, order, dto);
+    where = this.createSortCategoryData(where, order, dto);
+    where = this.createSearchData(where, dto);
+
+    // * Find object
+    const products = await this.productRepository.find({
+      where,
+      order,
+      relations,
+      skip,
+      take,
+    });
+
+    // * Admin data
+    const filteredProducts = this.deleteAdminData(auth, products);
+
+    // * Response
+    return filteredProducts;
+  } catch (error) { ... }
+}
+```
+
+**Принципы:**
+
+- `where = this.createSortData(...)` — присвоение результата, не мутация без возврата
+- Сначала `find()`, затем `deleteAdminData()` — фильтрация чувствительных полей в памяти
+- Списки полей для удаления — внутри `deleteAdminData`, не в константах класса
+- Переменная `filteredXxx` и отдельный блок `// * Response` + `return`
+
+#### 2.3 Provider.create — транзакции и ответ
+
+```ts
+async create(auth: Auth, dto: ProductsCreateDto): Promise<Product> {
+  return this.productRepository.manager
+    .transaction(async (manager) => {
+      this.checkAdminData(auth, dto);
+      const savedProduct = await this.createProduct(auth, manager, productDto);
+      await this.createProductImages(manager, savedProduct, imagesDto);
+      return savedProduct;
+    })
+    .then(async (product) => {
+      return await this.productsIdReadProvider.read(auth, product.id.toString());
+    })
+    .catch((error) => { ... });
+}
+```
+
+Ответ после create — полный объект через Read provider, чтобы клиент получал связанные сущности (relations).
+
+#### 2.4 Provider.update / delete — транзакции, проверка доступа
+
+- `createSortData` формирует `where` по id или slug
+- `checkAccess` — проверка прав (владелец или admin)
+- `checkAdminData` — удаление полей, недоступных non-admin
+- Транзакция для атомарности
+
+---
+
+### 3. DDD и слои
+
+| Слой           | Реализация                                                          |
+| -------------- | ------------------------------------------------------------------- |
+| **Entity**     | TypeORM `@Entity`, `@Column`, связи                                 |
+| **DTO**        | class-validator + class-transformer + Swagger                       |
+| **Provider**   | Сервисный слой: репозитории, транзакции, бизнес-правила             |
+| **Controller** | Транспортный слой: HTTP, guards, interceptors                       |
+| **Subscriber** | Domain events: slug, индексация в Elasticsearch, каскадное удаление |
+
+Domain-логика сконцентрирована в providers и subscribers. Entities — чистые модели данных.
+
+---
+
+### 4. SOLID
+
+| Принцип                       | Реализация                                                                                    |
+| ----------------------------- | --------------------------------------------------------------------------------------------- |
+| **S** — Single Responsibility | Controller = маршрутизация; Provider = бизнес-логика; Subscriber = одна реакция на событие    |
+| **O** — Open/Closed           | Новый домен = новый модуль; расширение через subscribers и guards                             |
+| **L** — Liskov                | Провайдеры одного типа (Read, Create, Update, Delete) взаимозаменяемы в рамках контракта      |
+| **I** — Interface Segregation | Небольшие DTO под конкретные операции; Auth передаётся только где нужен                       |
+| **D** — Dependency Inversion  | Providers инжектятся через конструктор; зависимости от абстракций (Repository, SearchService) |
+
+---
+
+### 5. Entities и DTO
+
+#### 5.1 Entity
+
+- TypeORM-декораторы + Swagger `@ApiProperty`
+- `@Transform` для нормализации (slug, коды)
+- `@ApiHideProperty()` для скрытых полей (deleted_at и т.п.)
+
+#### 5.2 DTO
+
+- Валидация через class-validator
+- `@Type(() => Number)`, `@Type(() => Date)` для query/body
+- Вложенные DTO — через `@ValidateNested()` + `@Type(() => ChildDto)`
+- Сложные структуры — `.partials` (например, `orders/dto/.partials/create/shipping/create.ts`)
+
+---
+
+### 6. Subscribers
+
+TypeORM `EntitySubscriberInterface` для побочных эффектов:
+
+- **ProductCreateSubscriber** — автогенерация slug из title при insert
+- **ProductCreateSubscriber (Search)** — индексация в Elasticsearch при create
+- **ProductUpdateSubscriber** — обновление документа в Elasticsearch
+- **ProductDeleteSubscriber** — удаление из индекса
+- **UserAvatarDeleteSubscriber**, **ProductImagesDeleteSubscriber** и т.д. — каскадное удаление файлов при `remove`
+
+Подписчики не содержат основной бизнес-логики, только реакции на изменения сущностей.
+
+---
+
+### 7. Auth
+
+- **AuthGuard** — проверка JWT, доступ к защищённым маршрутам
+- **AuthInterceptor** — опциональный auth (для публичных эндпоинтов с персонализацией)
+- **AuthDecorator** — извлечение `Auth` из request
+- Роли: `UserRole.BUYER`, `UserRole.SELLER`, `UserRole.ADMIN`
+
+---
+
+### 8. База данных и окружение
+
+- **TypeORM** + MySQL
+- Миграции: `migration:generate`, `migration:run`, `migration:revert`
+- Конфиг в `common/config/orm/config.ts`
+- `entities: ['dist/**/entities/**/*{.js,.ts}']` — автоматический скан сущностей
+
+---
+
+### 9. Маршрутизация
+
+Префикс `/api` задаётся глобально. Примеры:
+
+| Маршрут                                     | Метод              | Домен         | Действие                    |
+| ------------------------------------------- | ------------------ | ------------- | --------------------------- |
+| `/api/products`                             | GET, POST          | products      | read, create                |
+| `/api/products/:productIdOrSlug`            | GET, PATCH, DELETE | products      | read, update, delete        |
+| `/api/products/:productIdOrSlug/categories` | GET, POST, DELETE  | products      | read, create, delete        |
+| `/api/users`                                | GET, POST          | users         | read, create                |
+| `/api/users/:id`                            | GET, PATCH, DELETE | users         | read, update, delete        |
+| `/api/orders`                               | GET, POST          | orders        | read, create                |
+| `/api/auth`                                 | GET                | auth          | read (текущий пользователь) |
+| `/api/elastic/products`                     | GET                | shared/elastic | full-text поиск             |

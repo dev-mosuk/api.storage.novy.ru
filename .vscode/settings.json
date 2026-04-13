@@ -1,0 +1,27 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": null,
+  "prettier.enable": true,
+  "prettier.requireConfig": false,
+  "typescript.preferences.importModuleSpecifier": "non-relative", // Использовать только абсолютные импорты
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": null,
+    "editor.formatOnSave": true
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": null,
+    "editor.formatOnSave": true
+  },
+  "[json]": {
+    "editor.defaultFormatter": null,
+    "editor.formatOnSave": true
+  }
+}

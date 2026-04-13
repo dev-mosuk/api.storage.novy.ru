@@ -1,0 +1,197 @@
+---
+description: 
+alwaysApply: true
+---
+
+# WEB
+
+## Рекомендации по структуре компонентов
+
+### 1. Разделение `common` и `shared`
+
+| Папка      | Назначение                                                                   |
+| ---- | ---- |
+| **common** | Сущности, которые есть в API (users, products, orders и т.д.)                |
+| **shared** | Сущности, присущие самому проекту (layout, провайдеры, константы приложения) |
+
+#### 1.1 common — по доменам
+
+Каждый домен (auth, users, products, orders и т.д.) — отдельная папка со своей структурой:
+
+```
+common/
+└── auth/                    # Домен = сущность API
+    ├── components/         # UI-компоненты домена
+    │   └── (app)/actions/button/profile/...
+    ├── constants/          # Константы домена
+    ├── entities/           # Типы сущностей (entity.ts)
+    ├── enums/              # Перечисления домена
+    ├── providers/          # Провайдеры (контекст, подписчики)
+    ├── hooks/               # Хуки домена
+    └── dto/                 # DTO для API (если нужны)
+```
+
+**Примеры доменов:** `auth`, `users`, `products`, `categories`, `orders`, `promotions`, `warehouse`, `cart`, `location`, `maps`, `features`, `settings`.
+
+#### 1.2 shared — плоская структура
+
+Общие сущности проекта: сразу `components`, `constants`, `entities`, `enums`, `providers`, `hooks` на верхнем уровне.
+
+```
+shared/
+├── app/                     # Контекст приложения
+│   ├── components/          # Layout, header, footer, логотипы
+│   ├── constants/           # Константы приложения (название, URL)
+│   ├── entities/            # Сущности проекта (если нужны)
+│   ├── enums/               # Общие перечисления (area, role и т.д.)
+│   ├── providers/           # Провайдеры приложения (search, gdpr, yandex)
+│   └── hooks/               # Общие хуки (area, search, gdpr)
+└── microservices/           # Микросервисы, storage и т.д.
+```
+
+**Разница:**
+
+- **common** — домен = папка, внутри домена: components, constants, entities, enums, providers, hooks
+- **shared** — без вложенности по доменам, всё сразу: components, constants, enums, providers, hooks
+
+### 2. CRUD-страницы
+
+Для маршрутов вида `[id]` и `create` используется общая форма и `.partials`:
+
+```
+app/(admin)/admin/users/
+├── page.tsx                   # Список (если есть)
+├── page.client.tsx
+├── create/
+│   └── page.tsx               # Create → переиспользует [user_id] с id=null
+└── [user_id]/
+    ├── page.tsx               # Server: metadata + dynamic import
+    ├── page.client.tsx        # Client: Provider + View
+    ├── page.skeleton.tsx      # Skeleton при загрузке
+    └── .partials/
+        ├── component.tsx      # Основной view (форма, layout)
+        ├── providers/
+        │   ├── provider.tsx   # Data fetching, form state, context
+        │   ├── provider.interface.ts
+        │   └── context/
+        │       ├── context.ts
+        │       └── context.interface.ts
+        ├── hooks/
+        │   └── hook.ts        # usePageAdminUsersIdUpdateHook
+        └── components/
+            ├── article/
+            │   ├── component/
+            │   └── skeleton/
+            ├── tabs/
+            │   ├── component/
+            │   └── skeleton/
+            └── actions/
+                ├── component/
+                └── skeleton/
+```
+
+**Поток данных:**
+
+1. `page.tsx` — metadata, проверка params, рендер `PageDynamic`
+2. `page.skeleton.tsx` — skeleton при loading dynamic import
+3. `page.client.tsx` — оборачивает View в Provider с `user_id`
+4. Provider — SWR/API, react-hook-form, контекст
+5. `.partials/component.tsx` — главный view, собирает article, tabs, actions
+6. Create — тот же Provider с `user_id={null}`
+
+**Принципы:**
+
+- Create и Update — общая форма в `[id]`, разные значения `id`
+- Логика, провайдеры и хуки — в `.partials`
+- У каждой секции (article, tabs, actions) — свой component и skeleton
+
+### 3. `.partials` — внутренняя структура компонентов
+
+Папка `.partials` внутри `component/` используется для вариативности и разбиения на подчасти:
+
+```
+component/
+├── component.tsx              # Корневой компонент, собирает части
+└── .partials/
+    ├── constants/             # Константы (если нужны)
+    │   └── contants.ts
+    └── components/            # Варианты по роли/состоянию
+        ├── trigger/
+        │   ├── auth/          # Вариант для авторизованного
+        │   │   ├── component.tsx
+        │   │   └── interface.ts
+        │   └── guest/         # Вариант для гостя
+        │       ├── component.tsx
+        │       └── interface.ts
+        └── content/
+            ├── auth/
+            └── guest/
+```
+
+**Когда использовать:**
+
+- Варианты по состоянию (auth/guest, open/closed)
+- Варианты по роли (trigger, content, dropdown)
+- Общие константы, используемые только этим компонентом
+
+**Пример:** `AuthAppButtonProfile` — в зависимости от `auth?.user?.id` рендерит `TriggerAuth` или `TriggerGuest`.
+
+### 4. Component и Skeleton
+
+Разделяйте на `component` и `skeleton` там, где нужна загрузка данных и скелетоны для списков, карточек, строк (row) и аналогичных блоков.
+
+### 5. Component и Interface
+
+Выносите типы пропсов в отдельный файл `interface.ts` рядом с `component.tsx`.
+
+```ts
+// interface.ts
+export interface ProductAdminRowProps {
+  product: Product;
+  href?: string | null;
+}
+
+// component.tsx
+import { ProductAdminRowProps } from './interface';
+
+export function ProductAdminRow({ product, href, ...rest }: Div.Props & ProductAdminRowProps) {
+```
+
+### 6. classNames и порядок классов
+
+Используйте `classNames` и группируйте классы по логике в таком порядке:
+
+| Порядок  | Группа                   | Примеры                                                       |
+| ----- | --- | ---- |
+| **6.0**  | Контейнер и group        | `@container`, `group` (всегда вначале)                        |
+| **6.1**  | Overflow                 | `overflow-hidden`, `overflow-auto`                            |
+| **6.2**  | Позиционирование         | `absolute`, `fixed`, `relative`                               |
+| **6.3**  | Отображение              | `block`, `hidden`, `flex`, `grid`                             |
+| **6.4**  | Размеры                  | `w-full`, `h-12`, `min-w-0`, `max-w-3/12`                     |
+| **6.5**  | Фон                      | `bg-gray-100`, `bg-gradient-to-r`                             |
+| **6.6**  | Текст                    | `text-sm`, `text-gray-500`, `leading-relaxed`, `line-clamp-1` |
+| **6.7**  | Отступы                  | `p-4`, `px-8`, `mt-0.5`, `gap-4`                              |
+| **6.8**  | Граница и скругление     | `border`, `border-transparent`, `rounded-lg`                  |
+| **6.9**  | Тень                     | `shadow`, `shadow-sm`                                         |
+| **6.10** | Курсор и интерактивность | `cursor-pointer`, `pointer-events-none`                       |
+| **6.11** | Условные (переменные)    | `{ 'bg-red-500': isOpen }`                                    |
+| **6.12** | Hover                    | `hover:bg-gray-100`, `hover:text-primary-500`                 |
+
+**Пример:**
+
+```tsx
+className={classNames(
+  '@container',                    // 6.0
+  'group',                         // 6.0
+  'overflow-hidden',               // 6.1
+  'flex flex-col',                 // 6.3
+  'w-full @xl:max-w-3/12',        // 6.4
+  'bg-gray-100',                   // 6.5
+  'text-sm text-gray-500',         // 6.6
+  'p-4 gap-4',                     // 6.7
+  'border border-transparent rounded-lg',  // 6.8
+  'cursor-pointer',                // 6.10
+  { 'bg-primary-100': isActive },   // 6.11
+  'hover:bg-gray-200',              // 6.12
+)}
+```
