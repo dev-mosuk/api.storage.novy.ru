@@ -1,7 +1,8 @@
+import { BulkItemDto } from '@/common/bulk/dtos/item/dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString } from 'class-validator';
 
-export class FileDeleteDto {
+export class FileDeleteDto extends BulkItemDto {
   @ApiProperty({
     description:
       'Полный URL файла: базовый URL + type + id + name (как в ответе загрузки)',

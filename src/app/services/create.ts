@@ -32,6 +32,8 @@ export interface FileCreateResultInterface {
   error?: string | null;
   /** Ключ поля в bulk `errors` (иначе провайдер подставляет `file` / `path`). */
   errorKey?: string;
+  /** Correlation id из bulk-элемента; провайдер подставляет в ответ или индекс. */
+  transaction_id?: number;
 }
 
 interface CreateItemOptionsInterface {
@@ -44,6 +46,7 @@ interface CreateItemOptionsInterface {
 
 interface CreatePendingInterface {
   index: number;
+  transaction_id?: number;
   file?: ProcessedFileInterface;
   options?: CreateItemOptionsInterface;
   error?: FileCreateResultInterface;
@@ -73,10 +76,7 @@ export class FileCreateService implements OnModuleInit {
   constructor(private readonly configService: ConfigService) {}
 
   onModuleInit() {
-    this.basePath =
-      this.configService.get<string>('SERVICE_URL') ??
-      this.configService.get<string>('STORAGE_URL') ??
-      '';
+    this.basePath = this.configService.get<string>('SERVICE_URL');
     void this.ensureTempDirExists();
   }
 
@@ -237,10 +237,13 @@ export class FileCreateService implements OnModuleInit {
 
     let successIndex = 0;
     for (const pendingItem of pending) {
+      const tid = pendingItem.transaction_id;
       if (pendingItem.error) {
-        results.push(pendingItem.error);
+        results.push({ ...pendingItem.error, transaction_id: tid });
       } else {
-        results.push(serviceResults[successIndex++][0]);
+        const row = serviceResults[successIndex++][0];
+
+        results.push({ ...row, transaction_id: tid });
       }
     }
 
@@ -261,6 +264,7 @@ export class FileCreateService implements OnModuleInit {
         if (!fileObj.path) {
           pending.push({
             index,
+            transaction_id: fileObj.transaction_id,
             error: {
               path: null,
               name: 'unknown',
@@ -276,6 +280,7 @@ export class FileCreateService implements OnModuleInit {
         if (!result) {
           pending.push({
             index,
+            transaction_id: fileObj.transaction_id,
             error: {
               path: null,
               name: fileObj.path,
@@ -288,6 +293,7 @@ export class FileCreateService implements OnModuleInit {
 
         pending.push({
           index,
+          transaction_id: fileObj.transaction_id,
           options,
           file: {
             filename: result.fileName,
@@ -299,6 +305,7 @@ export class FileCreateService implements OnModuleInit {
       } catch (error) {
         pending.push({
           index,
+          transaction_id: fileObj.transaction_id,
           error: {
             path: null,
             name: fileObj.path,
@@ -365,11 +372,29 @@ export class FileCreateService implements OnModuleInit {
         continue;
       }
 
+      const rawValue = Array.isArray(value) ? value[0] : value;
+
+      if (field === 'transaction_id') {
+        try {
+          const txnId = this.parseMultipartBulkTransactionId(rawValue);
+          if (txnId !== undefined) {
+            item.transaction_id = txnId;
+          }
+        } catch (error) {
+          item.error = {
+            path: null,
+            name: `transaction_id[${index}]`,
+            error: error.message,
+            errorKey: 'transaction_id',
+          };
+        }
+        continue;
+      }
+
       const options = item.options ?? {
         type: FileType.PUBLIC,
         user_id: jwt_user_id,
       };
-      const rawValue = Array.isArray(value) ? value[0] : value;
 
       try {
         if (field === 'type' && rawValue !== undefined) {
@@ -412,6 +437,7 @@ export class FileCreateService implements OnModuleInit {
       if (item.error) {
         return {
           index: item.index,
+          transaction_id: item.transaction_id,
           error: item.error,
         };
       }
@@ -419,6 +445,7 @@ export class FileCreateService implements OnModuleInit {
       if (!item.file) {
         return {
           index: item.index,
+          transaction_id: item.transaction_id,
           error: {
             path: null,
             name: 'upload',
@@ -529,6 +556,40 @@ export class FileCreateService implements OnModuleInit {
     }
 
     return quality;
+  }
+
+  /** Неотрицательный int для bulk correlation id; без значения — undefined. */
+  private parseMultipartBulkTransactionId(
+    rawInput: unknown,
+  ): number | undefined {
+    const raw = this.unwrapMultipartFieldValue(rawInput);
+    if (raw === undefined || raw === null || raw === '') {
+      return undefined;
+    }
+
+    if (typeof raw === 'number' && Number.isInteger(raw)) {
+      if (raw < 0) {
+        throw new Error('transaction_id не может быть отрицательным');
+      }
+
+      return raw;
+    }
+
+    const text = this.normalizeMultipartScalar(rawInput);
+    if (text === undefined || text === '') {
+      return undefined;
+    }
+
+    const txn = Number(text);
+    if (!Number.isInteger(txn)) {
+      throw new Error('transaction_id должен быть целым числом');
+    }
+
+    if (txn < 0) {
+      throw new Error('transaction_id не может быть отрицательным');
+    }
+
+    return txn;
   }
 
   private parseResize(rawResize: unknown): FileCreateDto['resize'] | undefined {

@@ -10,7 +10,6 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-/** Поля обновления для `PATCH /{type}/{id}/{name}` (без `path` в теле). */
 export class FileUpdateDto {
   @ApiProperty({
     required: false,

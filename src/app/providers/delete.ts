@@ -33,23 +33,24 @@ export class StorageDeleteProvider {
   ): Promise<BulkTransaction<{ path: string }>[]> {
     const baseUrl = this.resolveBaseUrl();
     if (!baseUrl.trim()) {
-      return dto.map((_, transaction_id) => ({
-        transaction_id,
+      return dto.map((item, index) => ({
+        transaction_id: item.transaction_id ?? index,
         status: BulkTransactionStatus.ERROR,
         errors: {
-          path: 'Задайте SERVICE_URL или STORAGE_URL в окружении',
+          path: 'Задайте SERVICE_URL в окружении',
         },
       }));
     }
 
     const items: BulkTransaction<{ path: string }>[] = [];
 
-    for (const [transaction_id, item] of dto.entries()) {
+    for (const [index, item] of dto.entries()) {
+      const bulkTransactionId = item.transaction_id ?? index;
       try {
         const parsed = FilePathParse(item.path, baseUrl);
         if (!parsed) {
           throw new BadRequestException({
-            path: 'Некорректный path или не совпадает с SERVICE_URL / STORAGE_URL',
+            path: 'Некорректный path или не совпадает с SERVICE_URL',
           });
         }
 
@@ -72,7 +73,7 @@ export class StorageDeleteProvider {
         await this.fileDeleteService.deleteEntity(file);
 
         items.push({
-          transaction_id,
+          transaction_id: bulkTransactionId,
           status: BulkTransactionStatus.SUCCESS,
           data: { path: item.path },
         });
@@ -87,14 +88,14 @@ export class StorageDeleteProvider {
           } = response;
 
           items.push({
-            transaction_id,
+            transaction_id: bulkTransactionId,
             status: BulkTransactionStatus.ERROR,
             errors: fields as Record<string, string>,
           });
         } else {
           this.logger.error(error);
           items.push({
-            transaction_id,
+            transaction_id: bulkTransactionId,
             status: BulkTransactionStatus.ERROR,
           });
         }
@@ -105,10 +106,6 @@ export class StorageDeleteProvider {
   }
 
   private resolveBaseUrl(): string {
-    return (
-      this.configService.get<string>('SERVICE_URL') ??
-      this.configService.get<string>('STORAGE_URL') ??
-      ''
-    );
+    return this.configService.get<string>('SERVICE_URL');
   }
 }
