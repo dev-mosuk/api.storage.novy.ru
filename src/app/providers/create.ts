@@ -18,7 +18,7 @@ export class StorageCreateProvider {
   ) {}
 
   async index(
-    authentication: Authentication,
+    authentication: Authentication | undefined,
     request: FastifyRequest,
   ): Promise<BulkTransaction<FileCreateInterface>[]> {
     const isMultipart = (request.headers['content-type'] || '').includes(
@@ -36,9 +36,8 @@ export class StorageCreateProvider {
       results.map(
         async (
           result,
-          index,
+          transaction_id,
         ): Promise<BulkTransaction<FileCreateInterface>> => {
-          const transaction_id = result.transaction_id ?? index;
           if (result.error) {
             const field = result.errorKey ?? errorField;
 
@@ -52,9 +51,7 @@ export class StorageCreateProvider {
           }
 
           const file = await this.fileRepository.findOne({
-            where: {
-              id: result.id ?? 0,
-            },
+            where: { id: result.id ?? 0 },
             relations: ['users'],
           });
 

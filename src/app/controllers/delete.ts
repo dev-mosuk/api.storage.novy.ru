@@ -38,17 +38,11 @@ export class FilesDeleteController {
     description: [
       'Массовое удаление по полному **`path`** файла.',
       '',
-      'Опционально **`transaction_id`** (≥0) на элемент массива — correlation id в ответе; без поля совпадает с индексом.',
-      '',
       'Удалять может только **автор**, **ADMIN** или **MICROSERVICE**. Нужен **JWT**.',
     ].join('\n'),
   })
   @ApiBearerAuth('JWT')
-  @ApiBody({
-    description:
-      'Массив объектов `{ path }`; опционально **`transaction_id`**. Swagger — модель **`FileDeleteDto`**.',
-    type: [FileDeleteDto],
-  })
+  @ApiBody({ type: [FileDeleteDto] })
   @ApiOkResponse({
     description: 'Полный успех',
     schema: {

@@ -77,7 +77,6 @@ describe('StorageCreateProvider', () => {
 
     expect(out).toHaveLength(1);
     expect(out[0].status).toBe(BulkTransactionStatus.SUCCESS);
-    expect(out[0].transaction_id).toBe(0);
     if (out[0].status === BulkTransactionStatus.SUCCESS) {
       expect(out[0].data).toMatchObject({
         id: 1,
@@ -86,28 +85,6 @@ describe('StorageCreateProvider', () => {
         path: 'https://storage.test/public/1/photo.webp',
       });
     }
-  });
-
-  it('переносит transaction_id из результата сервиса в bulk-ответ', async () => {
-    const file = mockFile();
-    fileCreateService.createFromUpload.mockResolvedValue([
-      {
-        id: 1,
-        path: 'https://storage.test/public/1/photo.webp',
-        name: 'photo.webp',
-        error: null,
-        transaction_id: 991,
-      },
-    ]);
-    fileRepository.findOne.mockResolvedValue(file);
-
-    const out = await provider.index(undefined, {
-      headers: {},
-      body: {},
-    } as FastifyRequest);
-
-    expect(out[0].transaction_id).toBe(991);
-    expect(out[0].status).toBe(BulkTransactionStatus.SUCCESS);
   });
 
   it('маппит ошибку сервиса в errors.path', async () => {

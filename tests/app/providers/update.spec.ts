@@ -89,40 +89,6 @@ describe('StorageUpdateProvider', () => {
     }
   });
 
-  it('возвращает переданный transaction_id на элемент массива', async () => {
-    manager.findOne.mockResolvedValue(file);
-    updateService.update.mockResolvedValue({ ...file, verified: true });
-
-    const out = await provider.index(
-      { user: { id: 7, role: UserRole.CUSTOMER } },
-      [
-        {
-          path: 'https://storage.test/public/1/a.webp',
-          verified: true,
-          transaction_id: 404,
-        },
-      ],
-    );
-
-    expect(out[0].status).toBe(BulkTransactionStatus.SUCCESS);
-    expect(out[0].transaction_id).toBe(404);
-  });
-
-  it('без transaction_id подставляет индекс элемента', async () => {
-    manager.findOne.mockResolvedValue(file);
-    updateService.update.mockResolvedValue({ ...file, verified: true });
-
-    const out = await provider.index(
-      { user: { id: 7, role: UserRole.CUSTOMER } },
-      [
-        { path: 'https://storage.test/public/1/a.webp', verified: true },
-        { path: 'https://storage.test/public/1/a.webp', verified: false },
-      ],
-    );
-
-    expect(out[1].transaction_id).toBe(1);
-  });
-
   it('маппит запрет на изменение чужого файла в bulk error', async () => {
     manager.findOne.mockResolvedValue(file);
     updateService.update.mockImplementation(() => {

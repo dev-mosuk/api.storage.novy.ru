@@ -1,7 +1,6 @@
 import { FileResizeCreateDto } from '@/app/dtos/(resize)/create';
 import { FileUserUpdateDto } from '@/app/dtos/[type]/[id]/[name]/(users)/update';
 import { FileType } from '@/app/enums/enum';
-import { BulkItemDto } from '@/common/bulk/dtos/item/dto';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -17,7 +16,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-export class FileCreateDto extends BulkItemDto {
+export class FileCreateDto {
   @ApiProperty({
     description: 'Зона хранения: public или private',
     enum: FileType,

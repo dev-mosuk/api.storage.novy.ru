@@ -34,25 +34,24 @@ export class StorageUpdateProvider {
   ): Promise<BulkTransaction<FileUpdateInterface>[]> {
     const baseUrl = this.resolveBaseUrl();
     if (!baseUrl.trim()) {
-      return dto.map((item, index) => ({
-        transaction_id: item.transaction_id ?? index,
+      return dto.map((_, transaction_id) => ({
+        transaction_id,
         status: BulkTransactionStatus.ERROR,
         errors: {
-          path: 'Задайте SERVICE_URL в окружении',
+          path: 'Задайте SERVICE_URL или STORAGE_URL в окружении',
         },
       }));
     }
 
     const items: BulkTransaction<FileUpdateInterface>[] = [];
 
-    for (const [index, item] of dto.entries()) {
-      const bulkTransactionId = item.transaction_id ?? index;
+    for (const [transaction_id, item] of dto.entries()) {
       await this.fileRepository.manager
         .transaction(async (manager) => {
           const parsed = FilePathParse(item.path, baseUrl);
           if (!parsed) {
             throw new BadRequestException({
-              path: 'Некорректный path или не совпадает с SERVICE_URL',
+              path: 'Некорректный path или не совпадает с SERVICE_URL / STORAGE_URL',
             });
           }
 
@@ -81,7 +80,7 @@ export class StorageUpdateProvider {
         })
         .then((file: File) => {
           items.push({
-            transaction_id: bulkTransactionId,
+            transaction_id,
             status: BulkTransactionStatus.SUCCESS,
             data: {
               ...file,
@@ -100,14 +99,14 @@ export class StorageUpdateProvider {
             } = response;
 
             items.push({
-              transaction_id: bulkTransactionId,
+              transaction_id,
               status: BulkTransactionStatus.ERROR,
               errors: fields as Record<string, string>,
             });
           } else {
             this.logger.error(error);
             items.push({
-              transaction_id: bulkTransactionId,
+              transaction_id,
               status: BulkTransactionStatus.ERROR,
             });
           }
@@ -118,6 +117,10 @@ export class StorageUpdateProvider {
   }
 
   private resolveBaseUrl(): string {
-    return this.configService.get<string>('SERVICE_URL');
+    return (
+      this.configService.get<string>('SERVICE_URL') ??
+      this.configService.get<string>('STORAGE_URL') ??
+      ''
+    );
   }
 }

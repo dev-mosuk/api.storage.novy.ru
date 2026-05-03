@@ -1,8 +1,8 @@
 import { FileUpdateDto } from '@/app/dtos/[type]/[id]/[name]/update';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsString } from 'class-validator';
 
+/** Элемент массива для `PATCH /` (массовое обновление по полному URL). */
 export class FilesUpdateDto extends FileUpdateDto {
   @ApiProperty({
     description:
@@ -12,19 +12,4 @@ export class FilesUpdateDto extends FileUpdateDto {
   @IsNotEmpty({ message: 'path обязателен' })
   @IsString()
   path: string;
-
-  @ApiPropertyOptional({
-    description: 'Идентификатор операции клиента',
-    minimum: 0,
-    example: 42,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt({
-    message: 'transaction_id должен быть целым числом',
-  })
-  @Min(0, {
-    message: 'transaction_id не может быть отрицательным',
-  })
-  transaction_id?: number;
 }

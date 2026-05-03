@@ -85,7 +85,11 @@ export class FileByPathReadProvider {
   }
 
   private resolveBaseUrl(): string {
-    return this.configService.get<string>('SERVICE_URL');
+    return (
+      this.configService.get<string>('SERVICE_URL') ??
+      this.configService.get<string>('STORAGE_URL') ??
+      ''
+    );
   }
 
   private resolveMimeType(name: string): string {

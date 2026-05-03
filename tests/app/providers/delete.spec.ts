@@ -63,46 +63,6 @@ describe('StorageDeleteProvider', () => {
     expect(deleteService.deleteEntity).toHaveBeenCalled();
   });
 
-  it('возвращает переданный transaction_id на элемент массива', async () => {
-    repository.findOne.mockResolvedValue({
-      id: 1,
-      user_id: 7,
-      type: FileType.PUBLIC,
-      name: 'a.webp',
-    } as File);
-    deleteService.assertCanDelete.mockReturnValue(undefined);
-    deleteService.deleteEntity.mockResolvedValue(undefined);
-
-    const out = await provider.index(
-      { user: { id: 7, role: UserRole.CUSTOMER } },
-      [{ path: 'https://storage.test/public/1/a.webp', transaction_id: 909 }],
-    );
-
-    expect(out[0].status).toBe(BulkTransactionStatus.SUCCESS);
-    expect(out[0].transaction_id).toBe(909);
-  });
-
-  it('без transaction_id подставляет индекс элемента', async () => {
-    repository.findOne.mockResolvedValue({
-      id: 1,
-      user_id: 7,
-      type: FileType.PUBLIC,
-      name: 'a.webp',
-    } as File);
-    deleteService.assertCanDelete.mockReturnValue(undefined);
-    deleteService.deleteEntity.mockResolvedValue(undefined);
-
-    const out = await provider.index(
-      { user: { id: 7, role: UserRole.CUSTOMER } },
-      [
-        { path: 'https://storage.test/public/1/a.webp' },
-        { path: 'https://storage.test/public/1/a.webp' },
-      ],
-    );
-
-    expect(out[1].transaction_id).toBe(1);
-  });
-
   it('возвращает error при запрете удаления', async () => {
     repository.findOne.mockResolvedValue({
       id: 1,

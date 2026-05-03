@@ -39,19 +39,13 @@ export class FilesUpdateController {
     description: [
       'Массовое обновление по полному **`path`** файла (как в URL после загрузки).',
       '',
-      'В теле — **`user_id`**, **`verified`** и/или **`users`**.',
-      '',
-      'Опционально **`transaction_id`** (≥0): correlation id в ответе; без поля совпадает с индексом элемента.',
+      'В теле - **`user_id`**, **`verified`** и/или **`users`**.',
       '',
       'Менять может только **автор**, **ADMIN** или **MICROSERVICE**. Нужен **JWT**.',
     ].join('\n'),
   })
   @ApiBearerAuth('JWT')
-  @ApiBody({
-    description:
-      'Массив тел обновления по `path`; у каждого элемента опционально **`transaction_id`**. Swagger — см. модель **`FilesUpdateDto`**.',
-    type: [FilesUpdateDto],
-  })
+  @ApiBody({ type: [FilesUpdateDto] })
   @ApiOkResponse({
     description: 'Полный успех',
     schema: {

@@ -39,11 +39,9 @@ export class FilesCreateController {
     description: [
       'Загрузка **multipart** или импорт по **JSON** с URL.',
       '',
-      'Поля **`type`**, **quality**, **`resize`**, **`users`** — в теле рядом с каждым элементом.',
+      'Поля **`type`**, **quality**, **resize**, **`users`** - в теле рядом с каждым элементом.',
       '',
-      'Опционально **`transaction_id`** (целое ≥0): correlation id клиента для сопоставления с ответом; без поля совпадает с индексом элемента. В multipart — **`transaction_id[n]`**.',
-      '',
-      '**JWT опционален** — с токеном подставляется `user_id`, без токена `user_id = null`.',
+      '**JWT опционален** - с токеном подставляется `user_id`, без токена `user_id = null`.',
     ].join('\n'),
   })
   @ApiBearerAuth('JWT')
@@ -51,7 +49,7 @@ export class FilesCreateController {
   @ApiBody({
     required: false,
     description:
-      'JSON — массив с `path`. Multipart — `file[n]`, `type[n]`, опционально `transaction_id[n]` и т.д.',
+      'JSON - массив с `path`. Multipart - поля `file[0]`, `type[0]` и т.д.',
     schema: {
       oneOf: [
         {
@@ -92,11 +90,6 @@ export class FilesCreateController {
                 },
                 example: [{ user_id: 7 }, { user_id: 11 }],
               },
-              transaction_id: {
-                type: 'integer',
-                minimum: 0,
-                example: 1,
-              },
             },
             required: ['path'],
           },
@@ -115,7 +108,6 @@ export class FilesCreateController {
               type: 'string',
               example: '[{"user_id":7},{"user_id":11}]',
             },
-            'transaction_id[0]': { type: 'integer', minimum: 0, example: 1 },
           },
         },
       ],
