@@ -73,10 +73,7 @@ export class FileCreateService implements OnModuleInit {
   constructor(private readonly configService: ConfigService) {}
 
   onModuleInit() {
-    this.basePath =
-      this.configService.get<string>('SERVICE_URL') ??
-      this.configService.get<string>('STORAGE_URL') ??
-      '';
+    this.basePath = this.configService.get<string>('SERVICE_URL');
     void this.ensureTempDirExists();
   }
 

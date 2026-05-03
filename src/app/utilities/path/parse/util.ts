@@ -9,7 +9,7 @@ export type FilePathParseResult = {
 
 /**
  * Разбор полного URL файла: `{base}/{type}/{id}/{name}`.
- * `baseUrl` - значение `SERVICE_URL` / `STORAGE_URL` (может включать path, например `https://host/cdn`).
+ * `baseUrl` - значение `SERVICE_URL` (может включать path, например `https://host/cdn`).
  */
 export function FilePathParse(
   input: string,

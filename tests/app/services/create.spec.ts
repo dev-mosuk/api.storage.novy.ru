@@ -54,9 +54,7 @@ describe('FileCreateService', () => {
           provide: ConfigService,
           useValue: {
             get: (key: string) =>
-              key === 'SERVICE_URL' || key === 'STORAGE_URL'
-                ? 'https://storage.test'
-                : undefined,
+              key === 'SERVICE_URL' ? 'https://storage.test' : undefined,
           },
         },
       ],

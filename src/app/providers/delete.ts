@@ -37,7 +37,7 @@ export class StorageDeleteProvider {
         transaction_id,
         status: BulkTransactionStatus.ERROR,
         errors: {
-          path: 'Задайте SERVICE_URL или STORAGE_URL в окружении',
+          path: 'Задайте SERVICE_URL в .env',
         },
       }));
     }
@@ -49,7 +49,7 @@ export class StorageDeleteProvider {
         const parsed = FilePathParse(item.path, baseUrl);
         if (!parsed) {
           throw new BadRequestException({
-            path: 'Некорректный path или не совпадает с SERVICE_URL / STORAGE_URL',
+            path: 'Некорректный path или не совпадает с SERVICE_URL',
           });
         }
 
@@ -105,10 +105,6 @@ export class StorageDeleteProvider {
   }
 
   private resolveBaseUrl(): string {
-    return (
-      this.configService.get<string>('SERVICE_URL') ??
-      this.configService.get<string>('STORAGE_URL') ??
-      ''
-    );
+    return this.configService.get<string>('SERVICE_URL');
   }
 }
